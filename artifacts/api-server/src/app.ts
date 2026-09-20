@@ -1,27 +1,31 @@
-﻿import express, { type Express } from "express";
+
+import express, { type Express } from "express";
 import cors from "cors";
-import pinoHttp = require("pino-http");
+import * as pinoHttpModule from "pino-http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
 
+const pinoHttp = (pinoHttpModule as any).default ?? (pinoHttpModule as any);
 const PostgresStore = connectPgSimple(session);
+
 const app: Express = express();
 
 app.use(
   pinoHttp({
     logger,
     serializers: {
-      req(req) {
+      req(req: any) {
         return {
           id: req.id,
           method: req.method,
           url: req.url?.split("?")[0],
         };
       },
-      res(res) {
+      res(res: any) {
         return {
           statusCode: res.statusCode,
         };
@@ -30,17 +34,27 @@ app.use(
   }),
 );
 
-const domains = process.env.REPLIT_DOMAINS ? process.env.REPLIT_DOMAINS.split(",") : [];
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || domains.some(domain => origin.endsWith(domain)) || origin.includes("localhost") || origin.includes("127.0.0.1")) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true,
-}));
+const domains = process.env.REPLIT_DOMAINS
+  ? process.env.REPLIT_DOMAINS.split(",")
+  : [];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (
+        !origin ||
+        domains.some((domain) => origin.endsWith(domain)) ||
+        origin.includes("localhost") ||
+        origin.includes("127.0.0.1")
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  }),
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -56,11 +70,11 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false, // Set to true if using HTTPS
+      secure: false,
       httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     },
-  })
+  }),
 );
 
 declare module "express-session" {
@@ -73,4 +87,3 @@ declare module "express-session" {
 app.use("/api", router);
 
 export default app;
-
